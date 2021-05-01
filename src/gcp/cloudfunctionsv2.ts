@@ -7,7 +7,7 @@ import { logger } from "../logger";
 import * as proto from "./proto";
 import * as utils from "../utils";
 
-const API_VERSION = "v2alpha";
+export const API_VERSION = "v2alpha";
 
 const client = new Client({
   urlPrefix: functionsV2Origin,
@@ -160,6 +160,40 @@ interface GenerateUploadUrlResponse {
   storageSource: StorageSource;
 }
 
+export interface IamPolicy {
+  version: number;
+  bindings: Record<string, unknown>[];
+  auditConfigs?: Record<string, unknown>[];
+  etag?: string;
+}
+
+export const DEFAULT_PUBLIC_POLICY = {
+    version: 3,
+    bindings: [
+        {
+            role: "roles/run.invoker",
+            members: ["allusers"],
+        },
+    ],
+};
+
+/**
+ * Sets the IAM policy of a Function
+ * @param name Fully qualified name of the Function.
+ * @param policy The [policy](https://cloud.google.com/functions/docs/reference/rest/v1/projects.locations.functions/setIamPolicy) to set.
+ */
+export async function setIamPolicy(name: string, policy: IamPolicy): Promise<void> {
+  try {
+    await client.post<IamPolicy, IamPolicy>(name, policy, {
+      queryParams: { updateMask: proto.fieldMasks(policy).join(",") },
+    });
+  } catch (err) {
+    throw new FirebaseError(`Failed to set the IAM Policy on the V2 function ${name}`, {
+      original: err,
+    });
+  }
+}
+
 /**
  * Logs an error from a failed function deployment.
  * @param funcName Name of the function that was unsuccessfully deployed.
@@ -208,7 +242,7 @@ export async function generateUploadUrl(
  * Creates a new Cloud Function.
  */
 export async function createFunction(
-  cloudFunction: Omit<CloudFunction, "serviceConfig.service">
+  cloudFunction: Omit<CloudFunction, OutputOnlyFields>
 ): Promise<Operation> {
   // the API is a POST to the collection that owns the function name.
   const path = cloudFunction.name.substring(0, cloudFunction.name.lastIndexOf("/"));
@@ -306,13 +340,11 @@ export async function updateFunction(
  * Deletes a Cloud Function.
  * It is safe, but should be unnecessary, to delete a Cloud Function by just its name.
  */
-export async function deleteFunction(
-  cloudFunction: Omit<CloudFunction, OutputOnlyFields>
-): Promise<Operation> {
+export async function deleteFunction(cloudFunction: string): Promise<Operation> {
   try {
-    const res = await client.delete<Operation>(cloudFunction.name);
+    const res = await client.delete<Operation>(cloudFunction);
     return res.body;
   } catch (err) {
-    throw functionsOpLogReject(cloudFunction.name, "update", err);
+    throw functionsOpLogReject(cloudFunction, "update", err);
   }
 }

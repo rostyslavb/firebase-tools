@@ -898,10 +898,12 @@ describe("Backend", () => {
         });
         const want: backend.Backend = {
           ...backend.empty(),
-          cloudFunctions: [{
+          cloudFunctions: [
+            {
               ...FUNCTION_SPEC,
-            apiVersion: 2,
-          }],
+              apiVersion: 2,
+            },
+          ],
         };
 
         await expect(backend.checkAvailability(newContext(), want)).to.eventually.be.rejectedWith(
