@@ -12,7 +12,7 @@ const API_VERSION = "v2alpha";
 const client = new Client({
   urlPrefix: functionsV2Origin,
   auth: true,
-  apiVersion: "v2alpha",
+  apiVersion: API_VERSION,
 });
 
 export const PUBSUB_PUBLISH_EVENT = "google.cloud.pubsub.topic.v1.messagePublished";
@@ -203,6 +203,7 @@ export async function generateUploadUrl(
     throw err;
   }
 }
+
 /**
  * Creates a new Cloud Function.
  */
@@ -301,6 +302,10 @@ export async function updateFunction(
   }
 }
 
+/**
+ * Deletes a Cloud Function.
+ * It is safe, but should be unnecessary, to delete a Cloud Function by just its name.
+ */
 export async function deleteFunction(
   cloudFunction: Omit<CloudFunction, OutputOnlyFields>
 ): Promise<Operation> {
