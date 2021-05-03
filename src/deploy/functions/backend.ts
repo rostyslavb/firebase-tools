@@ -447,6 +447,7 @@ export function toGCFv2Function(cloudFunction: FunctionSpec, source: gcfV2.Stora
   }
   proto.copyIfPresent(gcfFunction, cloudFunction, "labels");
 
+  console.error("GCFv2 Function is:", JSON.stringify(gcfFunction, null, 2));
   return gcfFunction;
 }
 
@@ -613,7 +614,7 @@ async function loadExistingBackend(ctx: Context & PrivateContextFields): Promise
       });
     }
   }
-  ctx.unreachableRegions.gcfV1 = [...gcfV1Results.unreachable];
+  ctx.unreachableRegions.gcfV1 = gcfV1Results.unreachable;
 
   if (!previews.functionsv2) {
     return;
@@ -661,7 +662,7 @@ async function loadExistingBackend(ctx: Context & PrivateContextFields): Promise
       });
     }
   }
-  ctx.unreachableRegions.gcfV2 = [...gcfV2Results.unreachable];
+  ctx.unreachableRegions.gcfV2 = gcfV2Results.unreachable;
 }
 
 /**

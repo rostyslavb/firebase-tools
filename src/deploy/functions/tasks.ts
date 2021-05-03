@@ -14,6 +14,7 @@ import * as backend from "./backend";
 import * as cloudscheduler from "../../gcp/cloudscheduler";
 import * as gcf from "../../gcp/cloudfunctions";
 import * as gcfV2 from "../../gcp/cloudfunctionsv2";
+import * as cloudrun from "../../gcp/run";
 import * as helper from "./functionsDeployHelper";
 import * as utils from "../../utils";
 import { first } from "lodash";
@@ -85,24 +86,23 @@ export function createFunctionTask(
         clc.bold(helper.getFunctionLabel(fn)) +
         "..."
     );
-    let opName: string;
+    let op: {name: string};
     if (fn.apiVersion === 1) {
       const apiFunction = backend.toGCFv1Function(fn, params.sourceUrl!);
       if (sourceToken) {
         apiFunction.sourceToken = sourceToken;
       }
-      opName = (await gcf.createFunction(apiFunction)).name;
+      op = await gcf.createFunction(apiFunction);
     } else {
       const apiFunction = backend.toGCFv2Function(fn, params.storageSource!);
-      opName = (await gcfV2.createFunction(apiFunction)).name;
+      op = await gcfV2.createFunction(apiFunction);
     }
-    await pollOperation<void>({
+    let cloudFunction = await pollOperation<unknown>({
       ...pollerOptionsByVersion[fn.apiVersion],
       pollerName: `create-${fnName}`,
-      operationResourceName: opName,
+      operationResourceName: op.name,
       onPoll,
     });
-
     if (!backend.isEventTrigger(fn.trigger)) {
       try {
         if (fn.apiVersion == 1) {
@@ -111,7 +111,8 @@ export function createFunctionTask(
             policy: gcf.DEFAULT_PUBLIC_POLICY,
           });
         } else {
-          await gcfV2.setIamPolicy(fnName, gcfV2.DEFAULT_PUBLIC_POLICY);
+          const serviceName = (cloudFunction as gcfV2.CloudFunction).serviceConfig.service!;
+          cloudrun.setIamPolicy(serviceName, cloudrun.DEFAULT_PUBLIC_POLICY);
         }
       } catch (err) {
         params.errorHandler.record("warning", fnName, "make public", err.message);

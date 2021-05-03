@@ -184,7 +184,7 @@ export const DEFAULT_PUBLIC_POLICY = {
  */
 export async function setIamPolicy(name: string, policy: IamPolicy): Promise<void> {
   try {
-    await client.post<IamPolicy, IamPolicy>(name, policy, {
+    await client.post<IamPolicy, IamPolicy>(`${name}:setIamPolicy`, policy, {
       queryParams: { updateMask: proto.fieldMasks(policy).join(",") },
     });
   } catch (err) {
@@ -227,7 +227,7 @@ export async function generateUploadUrl(
 ): Promise<GenerateUploadUrlResponse> {
   try {
     const res = await client.post<never, GenerateUploadUrlResponse>(
-      `projects/${projectId}/locations/${location}:generateUploadUrl`
+      `projects/${projectId}/locations/${location}/functions:generateUploadUrl`
     );
     return res.body;
   } catch (err) {
@@ -245,9 +245,14 @@ export async function createFunction(
   cloudFunction: Omit<CloudFunction, OutputOnlyFields>
 ): Promise<Operation> {
   // the API is a POST to the collection that owns the function name.
-  const path = cloudFunction.name.substring(0, cloudFunction.name.lastIndexOf("/"));
+  const components = cloudFunction.name.split("/");
+  const functionId = components.splice(-1, 1)[0];
+
   try {
-    const res = await client.post<typeof cloudFunction, Operation>(path, cloudFunction);
+    const res = await client.post<typeof cloudFunction, Operation>(
+      components.join("/"),
+      cloudFunction,
+      { queryParams: {functionId} });
     return res.body;
   } catch (err) {
     throw functionsOpLogReject(cloudFunction.name, "create", err);
@@ -284,21 +289,25 @@ export async function listFunctions(projectId: string, region: string): Promise<
  *  Customers should generally use backend.existingBackend and backend.checkAvailability.
  */
 export async function listAllFunctions(projectId: string): Promise<ListFunctionsResponse> {
-  return await listFunctionsInternal(projectId, /* region=*/ "-");
+  // NOTE: until namespace conflict resolution is implemented, prod will only support us-west1, though
+  // the preprod version still only supports us-central1 isntead.
+  const region = functionsV2Origin.match(/autopush/) ? 'us-central1' : 'us-west1';
+  logger.warn("GCFv2 does not yet support listing all regions. This limits support to us-central only");
+  return await listFunctionsInternal(projectId, /* region=*/ region);
 }
 
 async function listFunctionsInternal(
   projectId: string,
   region: string
 ): Promise<ListFunctionsResponse> {
+  type Response = ListFunctionsResponse & { nextPageToken?: string };
   const functions: CloudFunction[] = [];
   const unreacahble = new Set<string>();
   let pageToken = "";
   while (true) {
-    const res = await client.get<ListFunctionsResponse & { nextPageToken?: string }>(
-      `projects/${projectId}/locations/us-central1/functions`,
-      { queryParams: { pageToken } }
-    );
+    const url = `projects/${projectId}/locations/${region}/functions`;
+    const opts = pageToken == "" ? {} : { queryParams: { pageToken} };
+    const res = await client.get<Response>(url, opts);
     functions.push(...(res.body.functions || []));
     for (const region of res.body.unreachable || []) {
       unreacahble.add(region);

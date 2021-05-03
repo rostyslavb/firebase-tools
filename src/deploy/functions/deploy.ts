@@ -1,15 +1,15 @@
 import * as clc from "cli-color";
 import { setGracefulCleanup } from "tmp";
 
+import { checkHttpIam } from "./checkIam";
 import { functionsUploadRegion } from "../../api";
 import { logSuccess, logWarning } from "../../utils";
-import { checkHttpIam } from "./checkIam";
 import * as args from "./args";
+import * as backend from "./backend";
 import * as gcs from "../../gcp/storage";
 import * as gcf from "../../gcp/cloudfunctions";
-import * as gcfV2 from "../../gcp/cloudfunctionsv2";
 import { previews } from "../../previews";
-import { logger } from "../../logger";
+import { promise } from "ora";
 
 const GCP_REGION = functionsUploadRegion;
 
@@ -18,20 +18,12 @@ setGracefulCleanup();
 async function uploadSourceV1(context: args.Context): Promise<void> {
   const uploadUrl = await gcf.generateUploadUrl(context.projectId, GCP_REGION);
   context.uploadUrl = uploadUrl;
-  const apiUploadUrl = uploadUrl.replace("https://storage.googleapis.com", "");
-  await gcs.upload(context.functionsSource, apiUploadUrl);
+  await gcs.upload(context.functionsSource, uploadUrl);
 }
 
 async function uploadSourceV2(context: args.Context): Promise<void> {
-  if (!previews.functionsv2) {
-    return;
-  }
-  // Note: Can we get away with this, or is it changing with AR? Do we need an upload per region?
-  logger.debug("Customer is uploading code for GCFv2");
-  const result = await gcfV2.generateUploadUrl(context.projectId, GCP_REGION);
-  context.storageSource = result.storageSource;
-  const apiUploadUrl = result.uploadUrl.replace("https://storage.googleapis.com", "");
-  await gcs.upload(context.functionsSource, apiUploadUrl);
+  const bucket = "staging." + await gcs.getDefaultBucket(context.projectId);
+  context.storageSource = await gcs.uploadObject(context.functionsSource!, bucket)
 }
 
 /**
@@ -56,7 +48,16 @@ export async function deploy(
   }
 
   try {
-    await Promise.all([uploadSourceV1(context), uploadSourceV2(context)]);
+    const want = options.config.get("functions.backend") as backend.Backend;
+    const uploads: Promise<void>[] = [];
+    if (want.cloudFunctions.some(fn => fn.apiVersion === 1)) {
+      uploads.push(uploadSourceV1(context));
+    }
+    if (want.cloudFunctions.some(fn => fn.apiVersion === 2)) {
+      uploads.push(uploadSourceV2(context));
+    }
+    await Promise.all(uploads);
+
     logSuccess(
       clc.green.bold("functions:") +
         " " +
