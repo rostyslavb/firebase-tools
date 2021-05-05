@@ -259,6 +259,7 @@ export async function runRegionalFunctionDeployment(
     const firstFn = regionalDeployment.functionsToUpdate.splice(firstV1Update)[0];
     const task = updateFunctionTask(params, firstFn!, /* sourceToken= */ undefined, onPollFn);
     await queue.run(task);
+    return;
   }
 
   // If all functions are GCFv2 functions, then we just deploy them all in parallel. They'll get

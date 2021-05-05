@@ -47,7 +47,7 @@ export async function setIamPolicy(name: string, policy: IamPolicy): Promise<voi
       updateMask: proto.fieldMasks(policy).join(","),
     });
   } catch (err) {
-    throw new FirebaseError(`Failed to set the IAM Policy on the V2 function ${name}`, {
+    throw new FirebaseError(`Failed to set the IAM Policy on the Service ${name}`, {
       original: err,
     });
   }

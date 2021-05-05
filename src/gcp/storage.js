@@ -45,10 +45,7 @@ async function _uploadSource(source, uploadUrl) {
     logOptions: { skipRequestBody: true },
   });
 
-  const match = url.pathname.match(/(gcf-upload-[a-z]+-[a-z0-9]+)-(.*)/);
   return {
-    bucket: match[1],
-    object: match[2],
     generation: result.response.headers["x-goog-generation"],
   };
 }
