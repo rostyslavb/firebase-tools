@@ -160,6 +160,40 @@ interface GenerateUploadUrlResponse {
   storageSource: StorageSource;
 }
 
+export interface IamPolicy {
+  version: number;
+  bindings: Record<string, unknown>[];
+  auditConfigs?: Record<string, unknown>[];
+  etag?: string;
+}
+
+export const DEFAULT_PUBLIC_POLICY = {
+  version: 3,
+  bindings: [
+    {
+      role: "roles/run.invoker",
+      members: ["allusers"],
+    },
+  ],
+};
+
+/**
+ * Sets the IAM policy of a Function
+ * @param name Fully qualified name of the Function.
+ * @param policy The [policy](https://cloud.google.com/functions/docs/reference/rest/v1/projects.locations.functions/setIamPolicy) to set.
+ */
+export async function setIamPolicy(name: string, policy: IamPolicy): Promise<void> {
+  try {
+    await client.post<IamPolicy, IamPolicy>(`${name}:setIamPolicy`, policy, {
+      queryParams: { updateMask: proto.fieldMasks(policy).join(",") },
+    });
+  } catch (err) {
+    throw new FirebaseError(`Failed to set the IAM Policy on the V2 function ${name}`, {
+      original: err,
+    });
+  }
+}
+
 /**
  * Logs an error from a failed function deployment.
  * @param funcName Name of the function that was unsuccessfully deployed.

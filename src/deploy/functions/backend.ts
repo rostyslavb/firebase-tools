@@ -447,7 +447,6 @@ export function toGCFv2Function(cloudFunction: FunctionSpec, source: gcfV2.Stora
   }
   proto.copyIfPresent(gcfFunction, cloudFunction, "labels");
 
-  console.error("GCFv2 Function is:", JSON.stringify(gcfFunction, null, 2));
   return gcfFunction;
 }
 
